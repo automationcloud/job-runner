@@ -13,7 +13,7 @@ import (
 
 var jobRunner *JobRunner
 
-// NewRunner create a new JobRunner
+// NewRunner create a new JobRunner.
 func NewRunner(httpClient *http.Client, apiKey, baseUrl, jibUrl string) JobRunner {
 	return JobRunner{
 		httpClient: httpClient,
@@ -26,7 +26,7 @@ func NewRunner(httpClient *http.Client, apiKey, baseUrl, jibUrl string) JobRunne
 	}
 }
 
-// JobRunner manages job
+// JobRunner manages job.
 type JobRunner struct {
 	apiClient  *cl.ApiClient
 	httpClient *http.Client
@@ -40,11 +40,11 @@ type JobRunner struct {
 type JibConfig = map[string]interface{}
 
 // JobRun is an instruction required to run a job using JobRunner, options are:
-//  - ServiceId: id of automation service, required
-//  - DomainId: id of domain, required
-//  - JibConfig: job input bundler (jib) configuration, required
-//  - CallbackUrl: callback url for webhook
-//  - HowMany: how many jobs with the same input data to run (used to test concurrency), defaults to 1
+// - ServiceId: id of automation service, required
+// - DomainId: id of domain, required
+// - JibConfig: job input bundler (jib) configuration, required
+// - CallbackUrl: callback url for webhook
+// - HowMany: how many jobs with the same input data to run (used to test concurrency), defaults to 1
 type JobRun struct {
 	ServiceId   string    `json:"serviceId"`
 	DomainId    string    `json:"domainId"`
@@ -53,7 +53,7 @@ type JobRun struct {
 	HowMany     int       `json:"howMany"`
 }
 
-// RunJob create automation job which then will be stored in JobRunner object for further control
+// RunJob create automation job which then will be stored in JobRunner object for further control.
 func (jr *JobRunner) RunJob(jobRun JobRun) (job cl.Job, err error) {
 	inputData, err := GenerateData(jr.JibUrl, jobRun.JibConfig, jr.httpClient)
 	if err != nil {
@@ -81,6 +81,7 @@ func (jr *JobRunner) RunJob(jobRun JobRun) (job cl.Job, err error) {
 	return job, err
 }
 
+// Resume job initializes jobrunner instance with running job.
 func (jr *JobRunner) ResumeJob(jobId, domainId string) error {
 	job, err := jr.apiClient.FetchJob(jobId)
 	if err != nil {
