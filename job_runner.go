@@ -1,3 +1,5 @@
+// Package jobrunner provides higher-level abstraction of automation cloud API
+// which allows to use protocol in order to automate in-flow input requests
 package jobrunner
 
 import (
@@ -11,6 +13,7 @@ import (
 
 var jobRunner *JobRunner
 
+// NewRunner create a new JobRunner
 func NewRunner(httpClient *http.Client, apiKey, baseUrl, jibUrl string) JobRunner {
 	return JobRunner{
 		httpClient: httpClient,
@@ -23,6 +26,7 @@ func NewRunner(httpClient *http.Client, apiKey, baseUrl, jibUrl string) JobRunne
 	}
 }
 
+// JobRunner manages job
 type JobRunner struct {
 	apiClient  *cl.ApiClient
 	httpClient *http.Client
@@ -32,16 +36,24 @@ type JobRunner struct {
 	InputData  map[string]interface{}
 }
 
+// JibConfig is a configuration for job input bundler (JIB).
 type JibConfig = map[string]interface{}
 
+// JobRun is an instruction required to run a job using JobRunner, options are:
+//  - ServiceId: id of automation service, required
+//  - DomainId: id of domain, required
+//  - JibConfig: job input bundler (jib) configuration, required
+//  - CallbackUrl: callback url for webhook
+//  - HowMany: how many jobs with the same input data to run (used to test concurrency), defaults to 1
 type JobRun struct {
 	ServiceId   string    `json:"serviceId"`
 	DomainId    string    `json:"domainId"`
 	JibConfig   JibConfig `json:"jibConfig"`
-	CallbackUrl string    `json:"callbackUrl"`
+	CallbackUrl string    `json:"callbackUrl,omitempty"`
 	HowMany     int       `json:"howMany"`
 }
 
+// RunJob create automation job which then will be stored in JobRunner object for further control
 func (jr *JobRunner) RunJob(jobRun JobRun) (job cl.Job, err error) {
 	inputData, err := GenerateData(jr.JibUrl, jobRun.JibConfig, jr.httpClient)
 	if err != nil {
@@ -55,10 +67,10 @@ func (jr *JobRunner) RunJob(jobRun JobRun) (job cl.Job, err error) {
 		return job, err
 	}
 
-	createWithInputs := FilterInputs(prot.Domains[jobRun.DomainId], inputData)
+	createWithInputs := filterInputs(prot.Domains[jobRun.DomainId], inputData)
 
 	for i := 0; i < jobRun.HowMany; i++ {
-		job, err := jr.apiClient.CreateJob(jobRun.ServiceId, createWithInputs, MakeCallbackUrl(jobRun.CallbackUrl, jobRun.DomainId))
+		job, err := jr.apiClient.CreateJob(jobRun.ServiceId, createWithInputs, makeCallbackUrl(jobRun.CallbackUrl, jobRun.DomainId))
 		if err != nil {
 			return job, err
 		}
@@ -91,7 +103,7 @@ func (jr *JobRunner) ResumeJob(jobId, domainId string) error {
 	return nil
 }
 
-func MakeCallbackUrl(url, domainId string) string {
+func makeCallbackUrl(url, domainId string) string {
 	if url == "" {
 		return ""
 	}
@@ -99,7 +111,7 @@ func MakeCallbackUrl(url, domainId string) string {
 	return url + "?domainId=" + domainId
 }
 
-func FilterInputs(d cl.Domain, i map[string]interface{}) (result map[string]interface{}) {
+func filterInputs(d cl.Domain, i map[string]interface{}) (result map[string]interface{}) {
 	result = make(map[string]interface{})
 	for key, _ := range d.Inputs {
 		data, present := i[key]
@@ -110,6 +122,8 @@ func FilterInputs(d cl.Domain, i map[string]interface{}) (result map[string]inte
 	return
 }
 
+// Process makes a step in job handling depending on job state.
+// It returns true if processing should continue and false otherwise.
 func (jr *JobRunner) Process(pause int) bool {
 	switch jr.Job.State {
 	case "processing":
@@ -124,7 +138,7 @@ func (jr *JobRunner) Process(pause int) bool {
 	}
 }
 
-func GetFromOutput(job *cl.Job, key string, method string) (data interface{}, err error) {
+func getFromOutput(job *cl.Job, key string, method string) (data interface{}, err error) {
 	output, err := job.GetOutput(key)
 	if err != nil {
 		return
@@ -141,6 +155,10 @@ func GetFromOutput(job *cl.Job, key string, method string) (data interface{}, er
 	return
 }
 
+// CreateInput makes an attempt to create input automatically.
+// It uses job output and domain type definitions in order to do so.
+// For example, it can send "finalPriceConsent" based on "finalPrice" output, if domain
+// defines "finalPriceConsent" input with "finalPrice" as `sourceOutputKey` and "Consent" and `inputMethod`
 func (jr *JobRunner) CreateInput(pause int) {
 	var data interface{}
 	var err error
@@ -162,7 +180,7 @@ func (jr *JobRunner) CreateInput(pause int) {
 			jr.Job.Cancel()
 			panic("unexpected awaitingInputKey " + jr.Job.AwaitingInputKey)
 		}
-		data, err = GetFromOutput(jr.Job, inputDef.SourceOutputKey, inputDef.InputMethod)
+		data, err = getFromOutput(jr.Job, inputDef.SourceOutputKey, inputDef.InputMethod)
 		if err != nil {
 			jr.Job.Cancel()
 			panic(err)
