@@ -1,4 +1,4 @@
-module githib.com/automationcloud/job-runner
+module github.com/automationcloud/job-runner
 
 go 1.12
 
