@@ -149,22 +149,23 @@ func (jr *JobRunner) CreateInput(pause int) {
 
 	if jr.InputData != nil {
 		data, ok = jr.InputData[jr.Job.AwaitingInputKey]
-		if !ok {
-			prot, err = jr.apiClient.GetProtocol()
-			if err != nil {
-				jr.Job.Cancel()
-				panic(err)
-			}
-			inputDef, found := prot.Domains[jr.DomainId].Inputs[jr.Job.AwaitingInputKey]
-			if !found {
-				jr.Job.Cancel()
-				panic("unexpected awaitingInputKey " + jr.Job.AwaitingInputKey)
-			}
-			data, err = GetFromOutput(jr.Job, inputDef.SourceOutputKey, inputDef.InputMethod)
-			if err != nil {
-				jr.Job.Cancel()
-				panic(err)
-			}
+	}
+
+	if !ok {
+		prot, err = jr.apiClient.GetProtocol()
+		if err != nil {
+			jr.Job.Cancel()
+			panic(err)
+		}
+		inputDef, found := prot.Domains[jr.DomainId].Inputs[jr.Job.AwaitingInputKey]
+		if !found {
+			jr.Job.Cancel()
+			panic("unexpected awaitingInputKey " + jr.Job.AwaitingInputKey)
+		}
+		data, err = GetFromOutput(jr.Job, inputDef.SourceOutputKey, inputDef.InputMethod)
+		if err != nil {
+			jr.Job.Cancel()
+			panic(err)
 		}
 	}
 
