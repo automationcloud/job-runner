@@ -11,8 +11,6 @@ import (
 	cl "github.com/automationcloud/client-go"
 )
 
-var jobRunner *JobRunner
-
 // NewRunner create a new JobRunner.
 func NewRunner(httpClient *http.Client, apiKey, baseUrl, jibUrl string) JobRunner {
 	return JobRunner{
