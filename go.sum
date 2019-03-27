@@ -1,2 +1,4 @@
 github.com/automationcloud/client-go v0.0.0-20190324115244-53a8a25dbd78 h1:khQAIwqU0zEmG1C13rhCIg6/qd6BaOAFRtJTeGfnZ/o=
 github.com/automationcloud/client-go v0.0.0-20190324115244-53a8a25dbd78/go.mod h1:AUcg1AbW49ZjJ5c/5gvSgIFfp+UGNLODlQoVWCzF+Qc=
+github.com/automationcloud/client-go v0.0.0-20190325112822-7ff355b2d4b2 h1:7BZxDkZRjUPnJEjWXtEqi01BcnorBqwNAS7I2Uhh6mw=
+github.com/automationcloud/client-go v0.0.0-20190325112822-7ff355b2d4b2/go.mod h1:gLmIudue/zdvoH4rgH0U+lc3Och8wHmzYfXN4u+CMYs=

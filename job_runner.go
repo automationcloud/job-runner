@@ -18,11 +18,7 @@ func NewRunner(httpClient *http.Client, apiKey, baseUrl, jibUrl string) JobRunne
 	return JobRunner{
 		httpClient: httpClient,
 		JibUrl:     jibUrl,
-		apiClient: &cl.ApiClient{
-			Client:    httpClient,
-			BaseUrl:   baseUrl,
-			SecretKey: apiKey,
-		},
+		apiClient:  cl.NewApiClient(httpClient, apiKey).WithBaseURL(baseUrl),
 	}
 }
 
@@ -46,11 +42,12 @@ type JibConfig = map[string]interface{}
 // - CallbackUrl: callback url for webhook
 // - HowMany: how many jobs with the same input data to run (used to test concurrency), defaults to 1
 type JobRun struct {
-	ServiceId   string    `json:"serviceId"`
-	DomainId    string    `json:"domainId"`
-	JibConfig   JibConfig `json:"jibConfig"`
-	CallbackUrl string    `json:"callbackUrl,omitempty"`
-	HowMany     int       `json:"howMany"`
+	ServiceId        string    `json:"serviceId"`
+	DomainId         string    `json:"domainId"`
+	JibConfig        JibConfig `json:"jibConfig"`
+	CallbackUrl      string    `json:"callbackUrl,omitempty"`
+	OversupplyInputs bool      `json:"oversupplyInputs"`
+	HowMany          int       `json:"howMany"`
 }
 
 // RunJob create automation job which then will be stored in JobRunner object for further control.
@@ -62,15 +59,24 @@ func (jr *JobRunner) RunJob(jobRun JobRun) (job cl.Job, err error) {
 	jr.InputData = inputData
 	jr.DomainId = jobRun.DomainId
 
-	prot, err := jr.apiClient.GetProtocol()
-	if err != nil {
-		return job, err
+	jcr := cl.JobCreationRequest{
+		ServiceId:   jobRun.ServiceId,
+		CallbackUrl: makeCallbackUrl(jobRun.CallbackUrl, jobRun.DomainId),
 	}
 
-	createWithInputs := filterInputs(prot.Domains[jobRun.DomainId], inputData)
+	if jobRun.OversupplyInputs {
+		prot, err := jr.apiClient.GetProtocol()
+		if err != nil {
+			return job, err
+		}
+
+		jcr.Data = filterInputs(prot.Domains[jobRun.DomainId], inputData)
+	} else {
+		jcr.Data = make(map[string]interface{})
+	}
 
 	for i := 0; i < jobRun.HowMany; i++ {
-		job, err := jr.apiClient.CreateJob(jobRun.ServiceId, createWithInputs, makeCallbackUrl(jobRun.CallbackUrl, jobRun.DomainId))
+		job, err := jr.apiClient.CreateJob(jcr)
 		if err != nil {
 			return job, err
 		}
@@ -164,7 +170,7 @@ func (jr *JobRunner) CreateInput(pause int) {
 	var data interface{}
 	var err error
 	var ok bool
-	var prot cl.Protocol
+	var prot *cl.Protocol
 
 	if jr.InputData != nil {
 		data, ok = jr.InputData[jr.Job.AwaitingInputKey]
@@ -188,10 +194,13 @@ func (jr *JobRunner) CreateInput(pause int) {
 		}
 	}
 
-	fmt.Printf("Waiting %d seconds before submitting an input for key %s", pause, jr.Job.AwaitingInputKey)
+	fmt.Printf("Waiting %d seconds before submitting an input for key %s\n", pause, jr.Job.AwaitingInputKey)
 	time.Sleep(time.Duration(pause) * time.Second)
 
-	input, err := jr.Job.CreateInput(cl.InputCreationRequest{Key: jr.Job.AwaitingInputKey, Data: data})
-	fmt.Println(input)
+	_, err = jr.Job.CreateInput(cl.InputCreationRequest{Key: jr.Job.AwaitingInputKey, Data: data})
+	if err != nil {
+		jr.Job.Cancel()
+		panic(err)
+	}
 	return
 }
