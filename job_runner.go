@@ -4,9 +4,8 @@ package jobrunner
 
 import (
 	"errors"
-	"fmt"
+	"math"
 	"net/http"
-	"time"
 
 	cl "github.com/automationcloud/client-go"
 )
@@ -29,9 +28,6 @@ type JobRunner struct {
 	JibUrl     string `json:"jibUrl"`
 	InputData  map[string]interface{}
 }
-
-// JibConfig is a configuration for job input bundler (JIB).
-type JibConfig = map[string]interface{}
 
 // JobRun is an instruction required to run a job using JobRunner, options are:
 // - ServiceId: id of automation service, required
@@ -60,21 +56,24 @@ func (jr *JobRunner) RunJob(jobRun JobRun) (job cl.Job, err error) {
 	jcr := cl.JobCreationRequest{
 		ServiceId:   jobRun.ServiceId,
 		CallbackUrl: makeCallbackUrl(jobRun.CallbackUrl, jobRun.DomainId),
+		Data:        inputData,
 	}
 
-	if jobRun.OversupplyInputs {
-		prot, err := jr.apiClient.GetProtocol()
-		if err != nil {
-			return job, err
+	/*
+		if jobRun.OversupplyInputs {
+			prot, err := jr.apiClient.GetProtocol()
+			if err != nil {
+				return job, err
+			}
+
+			jcr.Data = filterInputs(prot.Domains[jobRun.DomainId], inputData)
+		} else {
+			jcr.Data = make(map[string]interface{})
 		}
+	*/
 
-		jcr.Data = filterInputs(prot.Domains[jobRun.DomainId], inputData)
-	} else {
-		jcr.Data = make(map[string]interface{})
-	}
-
-	for i := 0; i < jobRun.HowMany; i++ {
-		job, err := jr.apiClient.CreateJob(jcr)
+	for i := 0; i < int(math.Max(1.0, float64(jobRun.HowMany))); i++ {
+		job, err = jr.apiClient.CreateJob(jcr)
 		if err != nil {
 			return job, err
 		}
@@ -86,26 +85,11 @@ func (jr *JobRunner) RunJob(jobRun JobRun) (job cl.Job, err error) {
 }
 
 // Resume job initializes jobrunner instance with running job.
-func (jr *JobRunner) ResumeJob(jobId, domainId string) error {
+func (jr *JobRunner) ResumeJob(jobId, domainId string) (err error) {
 	job, err := jr.apiClient.FetchJob(jobId)
-	if err != nil {
-		return err
-	}
-
-	prot, err := jr.apiClient.GetProtocol()
-	if err != nil {
-		return err
-	}
-
-	_, found := prot.Domains[domainId]
-	if !found {
-		return errors.New("unknown domain: " + domainId)
-	}
-
 	jr.DomainId = domainId
 	jr.Job = &job
-
-	return nil
+	return
 }
 
 func makeCallbackUrl(url, domainId string) string {
@@ -116,6 +100,7 @@ func makeCallbackUrl(url, domainId string) string {
 	return url + "?domainId=" + domainId
 }
 
+/*
 func filterInputs(d cl.Domain, i map[string]interface{}) (result map[string]interface{}) {
 	result = make(map[string]interface{})
 	for key, _ := range d.Inputs {
@@ -126,22 +111,7 @@ func filterInputs(d cl.Domain, i map[string]interface{}) (result map[string]inte
 	}
 	return
 }
-
-// Process makes a step in job handling depending on job state.
-// It returns true if processing should continue and false otherwise.
-func (jr *JobRunner) Process(pause int) bool {
-	switch jr.Job.State {
-	case "processing":
-		return true
-	case "awaitingInput":
-		jr.CreateInput(pause)
-		return true
-	case "awaitingTds":
-		return false
-	default:
-		return false
-	}
-}
+*/
 
 func getFromOutput(job *cl.Job, key string, method string) (data interface{}, err error) {
 	output, err := job.GetOutput(key)
@@ -164,11 +134,14 @@ func getFromOutput(job *cl.Job, key string, method string) (data interface{}, er
 // It uses job output and domain type definitions in order to do so.
 // For example, it can send "finalPriceConsent" based on "finalPrice" output, if domain
 // defines "finalPriceConsent" input with "finalPrice" as `sourceOutputKey` and "Consent" and `inputMethod`
-func (jr *JobRunner) CreateInput(pause int) {
+func (jr *JobRunner) CreateInput() (err error) {
 	var data interface{}
-	var err error
 	var ok bool
 	var prot *cl.Protocol
+
+	if jr.Job == nil {
+		return errors.New("job runner is not ready to create input: no job created or resumed")
+	}
 
 	if jr.InputData != nil {
 		data, ok = jr.InputData[jr.Job.AwaitingInputKey]
@@ -177,28 +150,18 @@ func (jr *JobRunner) CreateInput(pause int) {
 	if !ok {
 		prot, err = jr.apiClient.GetProtocol()
 		if err != nil {
-			jr.Job.Cancel()
-			panic(err)
+			return err
 		}
 		inputDef, found := prot.Domains[jr.DomainId].Inputs[jr.Job.AwaitingInputKey]
 		if !found {
-			jr.Job.Cancel()
-			panic("unexpected awaitingInputKey " + jr.Job.AwaitingInputKey)
+			return errors.New("unexpected awaitingInputKey " + jr.Job.AwaitingInputKey)
 		}
 		data, err = getFromOutput(jr.Job, inputDef.SourceOutputKey, inputDef.InputMethod)
 		if err != nil {
-			jr.Job.Cancel()
-			panic(err)
+			return err
 		}
 	}
 
-	fmt.Printf("Waiting %d seconds before submitting an input for key %s\n", pause, jr.Job.AwaitingInputKey)
-	time.Sleep(time.Duration(pause) * time.Second)
-
 	_, err = jr.Job.CreateInput(cl.InputCreationRequest{Key: jr.Job.AwaitingInputKey, Data: data})
-	if err != nil {
-		jr.Job.Cancel()
-		panic(err)
-	}
 	return
 }
