@@ -84,7 +84,7 @@ func (jr *JobRunner) RunJob(jobRun JobRun) (job cl.Job, err error) {
 	return job, err
 }
 
-// Resume job initializes jobrunner instance with running job.
+// ResumeJob initializes jobrunner instance with running job.
 func (jr *JobRunner) ResumeJob(jobId, domainId string) (err error) {
 	job, err := jr.apiClient.FetchJob(jobId)
 	jr.DomainId = domainId
