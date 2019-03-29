@@ -1,12 +1,6 @@
 github.com/1602/witness v0.0.0-20190325195543-6d06ce7c2910/go.mod h1:4OHwdC08kePz58cxGY3bUPARl5JRIKakC4V4ZGMbsMA=
-github.com/automationcloud/client-go v0.0.0-20190324115244-53a8a25dbd78 h1:khQAIwqU0zEmG1C13rhCIg6/qd6BaOAFRtJTeGfnZ/o=
-github.com/automationcloud/client-go v0.0.0-20190324115244-53a8a25dbd78/go.mod h1:AUcg1AbW49ZjJ5c/5gvSgIFfp+UGNLODlQoVWCzF+Qc=
-github.com/automationcloud/client-go v0.0.0-20190325112822-7ff355b2d4b2 h1:7BZxDkZRjUPnJEjWXtEqi01BcnorBqwNAS7I2Uhh6mw=
-github.com/automationcloud/client-go v0.0.0-20190325112822-7ff355b2d4b2/go.mod h1:gLmIudue/zdvoH4rgH0U+lc3Och8wHmzYfXN4u+CMYs=
-github.com/automationcloud/client-go v0.0.0-20190327125033-5ae546f62b07 h1:x6obNnRDz+7Jq62Jk0GhACWPzm2tFO+jjMIsG9V2788=
-github.com/automationcloud/client-go v0.0.0-20190327125033-5ae546f62b07/go.mod h1:woUghh7CWKaSe8oASY2FvxaZqbUl+EbSvVSHEgkGgQ0=
-github.com/automationcloud/client-go v0.0.0-20190329210039-6a9e5837a467 h1:fAIleFIHpTykgw3KXIJFRvdEBuh6aH8ftuZt1aA3e/0=
-github.com/automationcloud/client-go v0.0.0-20190329210039-6a9e5837a467/go.mod h1:woUghh7CWKaSe8oASY2FvxaZqbUl+EbSvVSHEgkGgQ0=
+github.com/automationcloud/client-go v0.0.1 h1:9SYGnTEHr+bGtQTn9ftXVINIIJAbGyInjlp68q2Y1Ew=
+github.com/automationcloud/client-go v0.0.1/go.mod h1:woUghh7CWKaSe8oASY2FvxaZqbUl+EbSvVSHEgkGgQ0=
 github.com/keegancsmith/rpc v1.1.0/go.mod h1:Xow74TKX34OPPiPCdz6x1o9c0SCxRqGxDuKGk7ZOo8s=
 github.com/stamblerre/gocode v0.0.0-20190213022308-8cc90faaf476/go.mod h1:EM2T8YDoTCvGXbEpFHxarbpv7VE26QD1++Cb1Pbh7Gs=
 golang.org/x/crypto v0.0.0-20190308221718-c2843e01d9a2/go.mod h1:djNgcEr1/C05ACkg1iLfiJU5Ep61QUkGW8qpdssI0+w=
