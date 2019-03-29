@@ -127,7 +127,7 @@ func getFromOutput(job *cl.Job, key string, method string) (data interface{}, er
 		return arr[0], nil
 	}
 
-	return
+	return nil, errors.New("unknown input method: " + method)
 }
 
 // CreateInput makes an attempt to create input automatically.
@@ -137,7 +137,6 @@ func getFromOutput(job *cl.Job, key string, method string) (data interface{}, er
 func (jr *JobRunner) CreateInput() (err error) {
 	var data interface{}
 	var ok bool
-	var prot *cl.Protocol
 
 	if jr.Job == nil {
 		return errors.New("job runner is not ready to create input: no job created or resumed")
@@ -145,23 +144,32 @@ func (jr *JobRunner) CreateInput() (err error) {
 
 	if jr.InputData != nil {
 		data, ok = jr.InputData[jr.Job.AwaitingInputKey]
-	}
-
-	if !ok {
-		prot, err = jr.apiClient.GetProtocol()
-		if err != nil {
-			return err
-		}
-		inputDef, found := prot.Domains[jr.DomainId].Inputs[jr.Job.AwaitingInputKey]
-		if !found {
-			return errors.New("unexpected awaitingInputKey " + jr.Job.AwaitingInputKey)
-		}
-		data, err = getFromOutput(jr.Job, inputDef.SourceOutputKey, inputDef.InputMethod)
-		if err != nil {
+		if ok {
+			_, err = jr.Job.CreateInput(data)
 			return err
 		}
 	}
 
-	_, err = jr.Job.CreateInput(cl.InputCreationRequest{Key: jr.Job.AwaitingInputKey, Data: data})
-	return
+	return jr.createInputUsingOutput()
+
+}
+
+func (jr *JobRunner) createInputUsingOutput() (err error) {
+	var prot *cl.Protocol
+	var data interface{}
+	prot, err = jr.apiClient.GetProtocol()
+	if err != nil {
+		return err
+	}
+	inputDef, found := prot.Domains[jr.DomainId].Inputs[jr.Job.AwaitingInputKey]
+	if !found || inputDef.SourceOutputKey == "" || inputDef.InputMethod == "" {
+		return errors.New("unexpected awaitingInputKey " + jr.Job.AwaitingInputKey)
+	}
+
+	data, err = getFromOutput(jr.Job, inputDef.SourceOutputKey, inputDef.InputMethod)
+	if err != nil {
+		return err
+	}
+	_, err = jr.Job.CreateInput(data)
+	return err
 }

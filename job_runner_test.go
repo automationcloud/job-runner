@@ -168,6 +168,123 @@ func TestCreateInput(t *testing.T) {
 		}
 	})
 
+	t.Run("input not defined in protocol", func(t *testing.T) {
+		responses := map[string]string{
+			"GET http://api/jobs/job-id": `{
+				"id": "job-id",
+				"state": "awaitingInput",
+				"awaitingInputKey": "finalPriceConsent"
+			}`,
+			"GET https://protocol.automationcloud.net/schema.json": `{
+				"domains": { "A": { "inputs": { } }
+			}}`,
+		}
+		client := newTestClient(func(req *http.Request) *http.Response {
+			// Test request parameters
+			request := req.Method + " " + req.URL.String()
+			response, ok := responses[request]
+			if !ok {
+				panic("undeclared request: " + request)
+			}
+			// fmt.Println(request, response)
+			return &http.Response{
+				StatusCode: 200,
+				Body:       ioutil.NopCloser(bytes.NewBufferString(response)),
+				Header:     make(http.Header),
+			}
+		})
+
+		jr := NewRunner(client, "apikey", "http://api", "http://jib")
+		err := jr.ResumeJob("job-id", "A")
+		if err != nil {
+			t.Error(err)
+			t.FailNow()
+		}
+		err = jr.CreateInput()
+		expectError(t, "unexpected awaitingInputKey finalPriceConsent", err)
+	})
+
+	t.Run("unable to load protocol", func(t *testing.T) {
+		responses := map[string]string{
+			"GET http://api/jobs/job-id": `{
+				"id": "job-id",
+				"state": "awaitingInput",
+				"awaitingInputKey": "finalPriceConsent"
+			}`,
+		}
+		client := newTestClient(func(req *http.Request) *http.Response {
+			// Test request parameters
+			request := req.Method + " " + req.URL.String()
+			response, ok := responses[request]
+			status := 200
+			if !ok {
+				status = 404
+			}
+			// fmt.Println(request, response)
+			return &http.Response{
+				StatusCode: status,
+				Body:       ioutil.NopCloser(bytes.NewBufferString(response)),
+				Header:     make(http.Header),
+			}
+		})
+
+		jr := NewRunner(client, "apikey", "http://api", "http://jib")
+		err := jr.ResumeJob("job-id", "A")
+		if err != nil {
+			t.Error(err)
+			t.FailNow()
+		}
+		err = jr.CreateInput()
+		expectError(t, "client error", err)
+	})
+
+	t.Run("unable to load input", func(t *testing.T) {
+		requestsMade := make(map[string]*http.Request)
+		responses := map[string]string{
+			"GET http://api/jobs/job-id": `{
+				"id": "job-id",
+				"state": "awaitingInput",
+				"awaitingInputKey": "finalPriceConsent"
+			}`,
+			"GET https://protocol.automationcloud.net/schema.json": `{
+			"domains": {
+				"A": {
+					"inputs": {
+						"finalPriceConsent": {
+							"inputMethod": "Consent",
+							"sourceOutputKey": "finalPrice"
+						}
+					}
+				}
+			}}`,
+		}
+		client := newTestClient(func(req *http.Request) *http.Response {
+			// Test request parameters
+			request := req.Method + " " + req.URL.String()
+			requestsMade[request] = req
+			response, ok := responses[request]
+			status := 200
+			if !ok {
+				status = 404
+			}
+			// fmt.Println(request, response)
+			return &http.Response{
+				StatusCode: status,
+				Body:       ioutil.NopCloser(bytes.NewBufferString(response)),
+				Header:     make(http.Header),
+			}
+		})
+
+		jr := NewRunner(client, "apikey", "http://api", "http://jib")
+		err := jr.ResumeJob("job-id", "A")
+		if err != nil {
+			t.Error(err)
+			t.FailNow()
+		}
+		err = jr.CreateInput()
+		expectError(t, "client error", err)
+	})
+
 	t.Run("stashed input", func(t *testing.T) {
 		requestsMade := make(map[string]*http.Request)
 		responses := map[string]string{
@@ -221,6 +338,109 @@ func TestCreateInput(t *testing.T) {
 		jr := &JobRunner{}
 		err := jr.CreateInput()
 		expectError(t, "job runner is not ready to create input: no job created or resumed", err)
+	})
+}
+
+func TestGetFromOutput(t *testing.T) {
+	t.Run("consent", func(t *testing.T) {
+		client := newTestClient(func(req *http.Request) *http.Response {
+			// fmt.Println(request, response)
+			return &http.Response{
+				StatusCode: 200,
+				Body:       ioutil.NopCloser(bytes.NewBufferString(`{"data": 13}`)),
+				Header:     make(http.Header),
+			}
+		})
+
+		jr := NewRunner(client, "apikey", "http://api", "http://jib")
+		jr.ResumeJob("id", "DomainId")
+
+		data, err := getFromOutput(jr.Job, "output-key", "Consent")
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if data.(float64) != 13 {
+			t.Errorf("expected output 13, got %v", data)
+		}
+	})
+
+	t.Run("select one", func(t *testing.T) {
+		client := newTestClient(func(req *http.Request) *http.Response {
+			// fmt.Println(request, response)
+			return &http.Response{
+				StatusCode: 200,
+				Body:       ioutil.NopCloser(bytes.NewBufferString(`{"data": [13]}`)),
+				Header:     make(http.Header),
+			}
+		})
+
+		jr := NewRunner(client, "apikey", "http://api", "http://jib")
+		err := jr.ResumeJob(":id", "DomainId")
+		if err != nil {
+			t.Error(err)
+			t.FailNow()
+		}
+
+		data, err := getFromOutput(jr.Job, "output-key", "SelectOne")
+
+		if err != nil {
+			t.Error(err)
+		}
+
+		if data.(float64) != 13 {
+			t.Errorf("expected output 13, got %v", data)
+		}
+	})
+
+	t.Run("unknown input method", func(t *testing.T) {
+		client := newTestClient(func(req *http.Request) *http.Response {
+			// fmt.Println(request, response)
+			return &http.Response{
+				StatusCode: 200,
+				Body:       ioutil.NopCloser(bytes.NewBufferString(`{"data": [13]}`)),
+				Header:     make(http.Header),
+			}
+		})
+
+		jr := NewRunner(client, "apikey", "http://api", "http://jib")
+		err := jr.ResumeJob(":id", "DomainId")
+		if err != nil {
+			t.Error(err)
+			t.FailNow()
+		}
+
+		_, err = getFromOutput(jr.Job, "output-key", "UnknownInputMethod")
+		expectError(t, "unknown input method: UnknownInputMethod", err)
+	})
+
+	t.Run("unable to load output", func(t *testing.T) {
+		client := newTestClient(func(req *http.Request) *http.Response {
+			// fmt.Println(request, response)
+			statusCode := 200
+			if req.URL.String() == "http://api/jobs/:id/outputs/:key" {
+				statusCode = 500
+			}
+			fmt.Println(req.URL.String())
+			return &http.Response{
+				StatusCode: statusCode,
+				Body:       ioutil.NopCloser(bytes.NewBufferString(`{"id":":id"}`)),
+				Header:     make(http.Header),
+			}
+		})
+
+		jr := NewRunner(client, "apikey", "http://api", "http://jib")
+		err := jr.ResumeJob(":id", "DomainId")
+		if err != nil {
+			t.Error(err)
+			t.FailNow()
+		}
+
+		fmt.Println(jr.Job)
+		_, err = getFromOutput(jr.Job, ":key", "SelectOne")
+
+		expectError(t, "server error", err)
 	})
 }
 
